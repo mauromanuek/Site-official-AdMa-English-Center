@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { auth, messaging } from '../lib/firebase';
 import { phoneToEmail } from '../lib/utils';
 import { Role } from '../types';
 import { Book, Users, Briefcase, ArrowLeft } from 'lucide-react';
@@ -35,6 +35,16 @@ export function AuthScreen({ onRoleSelect }: { onRoleSelect: (role: Role) => voi
       
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
+        
+        if (role === 'parent') {
+          try {
+            // Placeholder: Em produção, deves obter o token via getToken() do Firebase Messaging
+            const dummyToken = 'device_fcm_token_here';
+            await messaging.subscribeToTopic(dummyToken, 'encarregados_adma');
+          } catch (e) {
+            console.error('Erro na subscrição FCM:', e);
+          }
+        }
       } else {
         await createUserWithEmailAndPassword(auth, email, password);
       }

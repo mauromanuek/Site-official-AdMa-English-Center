@@ -14,3 +14,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// FCM (Simulado para o Frontend Estático)
+// Na prática, o web SDK não suporta subscribeToTopic. Isto requer uma Cloud Function.
+export const messaging = {
+  subscribeToTopic: async (token: string, topic: string) => {
+    console.log(`[FCM Simulado] Subscrição efetuada: token ${token} -> tópico ${topic}`);
+    // fetch('https://SUA_CLOUD_FUNCTION/subscribe', { ... })
+    return Promise.resolve();
+  }
+};

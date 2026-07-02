@@ -5,14 +5,30 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export function BottomNav({ currentView, onViewChange, userId }: { currentView: string, onViewChange: (v: string) => void, userId: string }) {
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   useEffect(() => {
     if (!userId) return;
-    const q = query(collection(db, 'notifications'), where('userId', '==', userId), where('read', '==', false));
-    return onSnapshot(q, snap => {
-      setUnreadCount(snap.docs.length);
+    
+    const qNotif = query(collection(db, 'notifications'), where('userId', '==', userId), where('read', '==', false));
+    const unsubNotif = onSnapshot(qNotif, snap => setUnreadNotifications(snap.docs.length));
+    
+    const qChats = query(collection(db, 'chats'), where('participants', 'array-contains', userId));
+    const unsubChats = onSnapshot(qChats, snap => {
+      let msgCount = 0;
+      snap.docs.forEach(doc => {
+        if (doc.data().unreadFor === userId) {
+          msgCount++;
+        }
+      });
+      setUnreadMessages(msgCount);
     });
+
+    return () => {
+      unsubNotif();
+      unsubChats();
+    };
   }, [userId]);
 
   return (
@@ -37,9 +53,9 @@ export function BottomNav({ currentView, onViewChange, userId }: { currentView: 
       >
         <div className="relative">
           <Bell className="w-6 h-6" />
-          {unreadCount > 0 && (
+          {unreadNotifications > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
-              {unreadCount}
+              {unreadNotifications}
             </span>
           )}
         </div>
@@ -49,7 +65,14 @@ export function BottomNav({ currentView, onViewChange, userId }: { currentView: 
         onClick={() => onViewChange('messages')}
         className={cn("flex flex-col items-center gap-1.5 transition-colors", currentView === 'messages' ? "text-blue-600 scale-110 transition-transform" : "text-gray-400 hover:text-gray-600")}
       >
-        <MessageSquare className="w-6 h-6" />
+        <div className="relative">
+          <MessageSquare className="w-6 h-6" />
+          {unreadMessages > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
+              {unreadMessages}
+            </span>
+          )}
+        </div>
         <span className="text-[10px] font-bold">Mensagens</span>
       </button>
     </div>

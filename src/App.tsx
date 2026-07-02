@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import { UserProfile, Role } from './types';
@@ -59,7 +59,17 @@ export default function App() {
           const docSnap = await getDoc(docRef);
           
           if (docSnap.exists()) {
-            setProfile({ id: docSnap.id, ...docSnap.data() } as UserProfile);
+            const data = docSnap.data();
+            const storedRole = localStorage.getItem('intendedRole') as Role;
+            
+            if (storedRole && data.role !== storedRole) {
+              const roleNames = { teacher: 'Professor', student: 'Estudante', parent: 'Encarregado' };
+              alert(`Acesso Recusado: A tua conta foi criada como ${roleNames[data.role as Role] || data.role}, mas tentaste aceder como ${roleNames[storedRole] || storedRole}. Por favor, seleciona a opção correta para continuar.`);
+              await signOut(auth);
+              return;
+            }
+
+            setProfile({ id: docSnap.id, ...data } as UserProfile);
             setNeedsProfile(false);
           } else {
             setNeedsProfile(true);

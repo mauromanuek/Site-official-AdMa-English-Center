@@ -12,6 +12,18 @@ export function ChatView({ profile, targetUser, onBack, onViewProfile }: { profi
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const chatRef = doc(db, 'chats', chatId);
+    const clearUnread = async () => {
+      try {
+        const { getDoc, updateDoc } = await import('firebase/firestore');
+        const snap = await getDoc(chatRef);
+        if (snap.exists() && snap.data().unreadFor === profile.id) {
+          await updateDoc(chatRef, { unreadFor: null });
+        }
+      } catch (e) {}
+    };
+    clearUnread();
+
     const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
     return onSnapshot(q, snap => {
       setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -54,17 +66,9 @@ export function ChatView({ profile, targetUser, onBack, onViewProfile }: { profi
         [targetUser.id]: { name: targetUser.name, photo: targetUser.photo, id: targetUser.id }
       },
       lastMessage: msg,
+      unreadFor: targetUser.id,
       updatedAt: serverTimestamp()
     }, { merge: true });
-
-    await addDoc(collection(db, 'notifications'), {
-      userId: targetUser.id,
-      title: 'Nova Mensagem',
-      message: `${profile.name}: ${msg}`,
-      type: 'geral',
-      createdAt: serverTimestamp(),
-      read: false
-    });
   };
 
   return (

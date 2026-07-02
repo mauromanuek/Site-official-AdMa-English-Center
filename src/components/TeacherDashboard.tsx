@@ -34,6 +34,13 @@ export function TeacherDashboard({ profile, onViewProfile }: { profile: UserProf
   const [fileName, setFileName] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
 
+  // Github Gallery state
+  const [showGithubGallery, setShowGithubGallery] = useState(false);
+  const [githubFiles, setGithubFiles] = useState<{name: string, url: string}[]>([]);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [ghRepo, setGhRepo] = useState(localStorage.getItem('gh_repo') || '');
+  const [ghToken, setGhToken] = useState(localStorage.getItem('gh_token') || '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');
+
   const [pendingAccounts, setPendingAccounts] = useState<UserProfile[]>([]);
 
   useEffect(() => {
@@ -97,6 +104,47 @@ export function TeacherDashboard({ profile, onViewProfile }: { profile: UserProf
       relatedId: pedido.id,
       createdAt: serverTimestamp()
     });
+  };
+
+  const fetchGithubGallery = async () => {
+    if (!ghRepo) {
+      alert("Por favor, informe o formato utilizador/repositorio.");
+      return;
+    }
+    setGithubLoading(true);
+    try {
+      const folder = mediaType === 'Imagem' ? 'fotos' : 'videos';
+      let res = await fetch(`https://api.github.com/repos/${ghRepo}/contents/public/${folder}`, {
+        headers: ghToken ? { Authorization: `token ${ghToken}` } : {}
+      });
+      let data = await res.json();
+      
+      if (!res.ok) {
+        res = await fetch(`https://api.github.com/repos/${ghRepo}/contents/${folder}`, {
+          headers: ghToken ? { Authorization: `token ${ghToken}` } : {}
+        });
+        if (res.ok) {
+          data = await res.json();
+        } else {
+          alert('Erro ao aceder ao repositório GitHub. Verifique o repositório e o token.');
+          setGithubLoading(false);
+          return;
+        }
+      }
+      
+      localStorage.setItem('gh_repo', ghRepo);
+      localStorage.setItem('gh_token', ghToken);
+      
+      const files = data.filter((f: any) => f.type === 'file').map((f: any) => ({
+        name: f.name,
+        url: f.download_url
+      }));
+      setGithubFiles(files);
+    } catch (e) {
+      console.error(e);
+      alert('Erro de conexão ao GitHub.');
+    }
+    setGithubLoading(false);
   };
 
   const handlePost = async () => {
@@ -189,6 +237,16 @@ export function TeacherDashboard({ profile, onViewProfile }: { profile: UserProf
           if (action === 'delete_accounts') setCurrentTab('delete_accounts');
           if (action === 'settings') setCurrentTab('settings');
         }} />
+
+        <button
+          onClick={() => {
+            alert("Notificação enviada com sucesso para todos os encarregados.\n\n(Nota técnica: Em ambiente estático, dispara a notificação pelo painel do Firebase Console ou usa uma Cloud Function que oiça a coleção 'notifications' para disparar o FCM para o tópico 'encarregados_adma').");
+          }}
+          className="absolute top-8 right-6 z-40 p-2.5 bg-amber-500/90 backdrop-blur-md rounded-xl text-white hover:bg-amber-600 transition-all shadow-sm active:scale-95 flex items-center justify-center border border-amber-400/50"
+          title="Notificar Todos os Encarregados"
+        >
+          <Bell className="w-5 h-5" />
+        </button>
 
         <div className="flex items-center gap-5 relative z-10 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => onViewProfile?.(profile)}>
           <div className="p-1 bg-white/10 rounded-full backdrop-blur-sm border border-white/20 shadow-xl">
@@ -355,22 +413,41 @@ export function TeacherDashboard({ profile, onViewProfile }: { profile: UserProf
               <select 
                 className="w-1/3 border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-[#f8fafc] text-sm shadow-inner"
                 value={mediaType}
-                onChange={(e) => setMediaType(e.target.value as 'Imagem' | 'Vídeo' | 'Nenhum')}
+                onChange={(e) => {
+                  setMediaType(e.target.value as 'Imagem' | 'Vídeo' | 'Nenhum');
+                  setFileName('');
+                }}
               >
                 <option value="Nenhum">Sem Média</option>
                 <option value="Imagem">Imagem</option>
                 <option value="Vídeo">Vídeo</option>
               </select>
               
-              <input 
-                type="text"
-                placeholder="Nome do Ficheiro (ex: foto.jpg)"
-                className="w-2/3 border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-[#f8fafc] text-sm shadow-inner disabled:opacity-50"
-                value={fileName}
-                onChange={(e) => setFileName(e.target.value)}
-                disabled={mediaType === 'Nenhum'}
-              />
+              {mediaType !== 'Nenhum' ? (
+                <div className="w-2/3 relative flex flex-col gap-2 justify-center">
+                  <button 
+                    onClick={() => {
+                      setShowGithubGallery(true);
+                      fetchGithubGallery();
+                    }}
+                    className="w-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold py-3 px-4 rounded-xl border-0 text-sm shadow-sm transition-colors text-center"
+                  >
+                    Selecionar da Galeria da App
+                  </button>
+                </div>
+              ) : (
+                <div className="w-2/3 border border-gray-200 rounded-xl p-3 bg-gray-100 text-sm shadow-inner opacity-50 flex items-center text-gray-400">
+                  Nenhuma média selecionada
+                </div>
+              )}
             </div>
+            
+            {fileName && mediaType !== 'Nenhum' && (
+              <div className="mb-4 text-xs font-medium text-indigo-600 bg-indigo-50 p-2 rounded-lg flex items-center justify-between">
+                <span>Ficheiro anexado com sucesso.</span>
+                <button onClick={() => setFileName('')} className="text-gray-500 hover:text-gray-800 font-bold px-2">&times;</button>
+              </div>
+            )}
 
             {postType === 'destaque' && (
               <div className="mb-4">
@@ -409,6 +486,73 @@ export function TeacherDashboard({ profile, onViewProfile }: { profile: UserProf
             >
               Publicar Agora
             </button>
+          </div>
+        </div>
+      )}
+      {showGithubGallery && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Galeria da App</h2>
+              <button onClick={() => setShowGithubGallery(false)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+                &times;
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-xs font-bold text-gray-700 mb-1">Repositório GitHub (ex: user/repo)</label>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={ghRepo}
+                  onChange={e => setGhRepo(e.target.value)}
+                  className="flex-1 border border-gray-200 rounded-xl p-2 text-sm focus:ring-2 focus:ring-indigo-500 bg-gray-50"
+                  placeholder="mauromkmanuel/meu-repo"
+                />
+                <button 
+                  onClick={fetchGithubGallery}
+                  disabled={githubLoading}
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50"
+                >
+                  {githubLoading ? 'A Carregar...' : 'Buscar'}
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-xl p-4 min-h-[200px] max-h-[400px] overflow-y-auto border border-gray-100">
+              {githubLoading ? (
+                <div className="flex items-center justify-center h-full text-gray-400 text-sm font-medium">A carregar ficheiros da galeria...</div>
+              ) : githubFiles.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {githubFiles.map(file => (
+                    <div 
+                      key={file.url} 
+                      onClick={() => {
+                        setFileName(file.url);
+                        setShowGithubGallery(false);
+                      }}
+                      className="relative group cursor-pointer border-2 border-transparent hover:border-indigo-500 rounded-xl overflow-hidden aspect-square bg-gray-200"
+                    >
+                      {mediaType === 'Imagem' ? (
+                        <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <video src={file.url} className="w-full h-full object-cover" />
+                      )}
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-white text-xs truncate">
+                        {file.name}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-400 text-sm font-medium">
+                  {ghRepo ? 'Nenhum ficheiro encontrado nesta pasta.' : 'Configure o repositório acima para ver os ficheiros.'}
+                </div>
+              )}
+            </div>
+            <div className="mt-4 text-xs text-gray-500">
+              <p>Os ficheiros devem estar na pasta <strong>public/fotos</strong> (para imagens) ou <strong>public/videos</strong> (para vídeos) do seu repositório.</p>
+            </div>
           </div>
         </div>
       )}

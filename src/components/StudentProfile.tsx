@@ -84,6 +84,7 @@ export function StudentProfile({ student, viewer, onClose, onViewProfile, onMess
       
       count++;
       localStorage.setItem('sms_count', count.toString());
+      
       setAnonMessage('');
       setAnonFeedback({ type: 'success', msg: 'Mensagem anónima enviada com sucesso.' });
     } catch (err) {
