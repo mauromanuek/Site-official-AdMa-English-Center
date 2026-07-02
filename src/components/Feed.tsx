@@ -102,7 +102,7 @@ export function Feed({ viewer, onViewProfile }: { viewer: UserProfile, onViewPro
           {post.mediaType === 'Imagem' && post.fileName && (
             <div className="mt-4 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center min-h-[100px] relative group">
               <img 
-                src={post.fileName.startsWith('data:') || post.fileName.startsWith('http') ? post.fileName : `./fotos/${post.fileName}`} 
+                src={post.fileName.startsWith('data:') || post.fileName.startsWith('http') ? post.fileName : `/fotos/${post.fileName}`} 
                 alt="Média da publicação" 
                 className="w-full h-auto object-cover max-h-96 feed-img" 
                 onError={(e) => {
@@ -127,7 +127,7 @@ export function Feed({ viewer, onViewProfile }: { viewer: UserProfile, onViewPro
                   target.style.display = 'none';
                   target.nextElementSibling?.classList.remove('hidden');
                 }}
-                src={post.fileName.startsWith('data:') || post.fileName.startsWith('http') ? post.fileName : `./videos/${post.fileName}`}
+                src={post.fileName.startsWith('data:') || post.fileName.startsWith('http') ? post.fileName : `/videos/${post.fileName}`}
               />
               <div className="hidden absolute inset-0 bg-gray-100 flex flex-col items-center justify-center text-gray-500 font-medium">
                 Média indisponível

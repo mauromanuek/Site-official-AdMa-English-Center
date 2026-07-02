@@ -526,9 +526,9 @@ export function TeacherDashboard({ profile, onViewProfile }: { profile: UserProf
                 <div className="grid grid-cols-2 gap-3">
                   {githubFiles.map(file => (
                     <div 
-                      key={file.url} 
+                      key={file.name} 
                       onClick={() => {
-                        setFileName(file.url);
+                        setFileName(file.name);
                         setShowGithubGallery(false);
                       }}
                       className="relative group cursor-pointer border-2 border-transparent hover:border-indigo-500 rounded-xl overflow-hidden aspect-square bg-gray-200"
