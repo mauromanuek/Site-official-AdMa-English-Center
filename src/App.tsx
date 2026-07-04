@@ -5,8 +5,9 @@
 
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from './lib/firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { onMessage } from 'firebase/messaging';
+import { auth, db, requestNotificationPermission, messaging } from './lib/firebase';
 import { UserProfile, Role } from './types';
 import { AuthScreen } from './components/AuthScreen';
 import { ProfileForm } from './components/ProfileForm';
@@ -71,6 +72,17 @@ export default function App() {
 
             setProfile({ id: docSnap.id, ...data } as UserProfile);
             setNeedsProfile(false);
+            
+            // Requerer permissões de Push Notifications
+            try {
+              const token = await requestNotificationPermission();
+              if (token) {
+                await updateDoc(docRef, { fcmToken: token });
+              }
+            } catch (e) {
+              console.error("Erro ao pedir notificação: ", e);
+            }
+            
           } else {
             setNeedsProfile(true);
             // Recover role if it was selected prior to auth, else default to student just in case
@@ -91,8 +103,20 @@ export default function App() {
       }
       setLoading(false);
     });
+    
+    // Configurar listener para mensagens FCM em foreground
+    let fcmUnsub: any = null;
+    if (messaging) {
+      fcmUnsub = onMessage(messaging, (payload) => {
+        console.log('Mensagem recebida em foreground: ', payload);
+        alert(`Nova Notificação de ${payload.notification?.title || 'Adma English Center'}:\n\n${payload.notification?.body}`);
+      });
+    }
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (fcmUnsub) fcmUnsub();
+    };
   }, []);
 
   const handleStart = () => {

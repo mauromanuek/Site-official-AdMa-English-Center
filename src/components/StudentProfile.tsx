@@ -132,7 +132,7 @@ export function StudentProfile({ student, viewer, onClose, onViewProfile, onMess
               <Avatar photo={student.photo} className="w-28 h-28 border-4 border-white" />
             </div>
             
-            {student.role !== 'teacher' && (
+            {student.role === 'student' && (
               <div className="absolute -right-3 -bottom-3 bg-white rounded-full p-1 shadow-xl z-20">
                 <svg className="w-14 h-14 transform -rotate-90">
                   <circle cx="28" cy="28" r={24} className="stroke-gray-100" strokeWidth="4" fill="none" />
@@ -155,7 +155,7 @@ export function StudentProfile({ student, viewer, onClose, onViewProfile, onMess
           <h2 className="text-3xl font-display font-bold tracking-tight drop-shadow-sm text-center px-4">{student.name}</h2>
         </div>
 
-        {student.role !== 'teacher' && (
+        {student.role === 'student' && (
           <div className="text-blue-100/90 text-sm flex items-center justify-center flex-wrap gap-3 mt-2 font-medium bg-white/10 px-4 py-1.5 rounded-full backdrop-blur-sm border border-white/10">
             {isEditing ? (
               <select value={level} onChange={e => setLevel(e.target.value)} className="bg-white/20 text-white border border-white/30 rounded px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-white/50">
@@ -242,7 +242,7 @@ export function StudentProfile({ student, viewer, onClose, onViewProfile, onMess
               </div>
             )}
           </>
-        ) : (
+        ) : student.role === 'student' ? (
         <div className="flex flex-col gap-4">
             <div className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 p-6 overflow-hidden">
               <div className="flex justify-between items-center mb-6">
@@ -301,6 +301,12 @@ export function StudentProfile({ student, viewer, onClose, onViewProfile, onMess
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 p-8 text-center">
+               <p className="text-gray-500 font-medium text-lg">Perfil de Encarregado de Educação</p>
             </div>
           </div>
         )}

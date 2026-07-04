@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, where, updateDoc, doc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, updateDoc, doc, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { UserProfile, PedidoVinculacao } from '../types';
 import { Avatar } from './Avatar';
@@ -25,6 +25,10 @@ export function TeacherDashboard({ profile, onViewProfile }: { profile: UserProf
   const [centerConfig, setCenterConfig] = useState<{ levels: string[], classes: string[], schedules: string[] }>({ levels: [], classes: [], schedules: [] });
   const [configLoaded, setConfigLoaded] = useState(false);
   
+  const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
+  const [notifyMessage, setNotifyMessage] = useState('');
+  const [isSendingNotif, setIsSendingNotif] = useState(false);
+
   // Post modal state
   const [isPosting, setIsPosting] = useState(false);
   const [postContent, setPostContent] = useState('');
@@ -221,6 +225,105 @@ export function TeacherDashboard({ profile, onViewProfile }: { profile: UserProf
 
   return (
     <div className="bg-[#f8fafc] min-h-screen pb-20 relative">
+      {isNotifyModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-300">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Adma English Center</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Esta mensagem será enviada para a aba "Notificações" de <b>todos os encarregados</b>. 
+              (Para testar, entre numa conta de encarregado e abra a aba do sino).
+            </p>
+            
+            <textarea
+              className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white resize-none h-32 mb-4"
+              placeholder="Digite a mensagem da notificação aqui..."
+              value={notifyMessage}
+              onChange={(e) => setNotifyMessage(e.target.value)}
+            />
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setIsNotifyModalOpen(false);
+                  setNotifyMessage('');
+                }}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                disabled={isSendingNotif}
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={!notifyMessage.trim() || isSendingNotif}
+                onClick={async () => {
+                  if (!notifyMessage.trim()) return;
+                  setIsSendingNotif(true);
+                  try {
+                    const q = query(collection(db, 'users'), where('role', '==', 'parent'));
+                    const snap = await getDocs(q);
+                    let count = 0;
+                    const tokens: string[] = [];
+                    const promises = snap.docs.map(d => {
+                      count++;
+                      const userData = d.data();
+                      if (userData.fcmToken) {
+                        tokens.push(userData.fcmToken);
+                      }
+                      return addDoc(collection(db, 'notifications'), {
+                        userId: d.id,
+                        type: 'info',
+                        title: 'Adma English Center',
+                        message: notifyMessage.trim(),
+                        read: false,
+                        createdAt: serverTimestamp()
+                      });
+                    });
+                    await Promise.all(promises);
+
+                    let pushResult = '';
+                    if (tokens.length > 0) {
+                      try {
+                        const response = await fetch('/api/send-push', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            tokens,
+                            title: 'Adma English Center',
+                            body: notifyMessage.trim()
+                          })
+                        });
+                        const result = await response.json();
+                        if (response.ok) {
+                          pushResult = `\nPush Web enviado para ${tokens.length} dispositivos!`;
+                        } else {
+                          pushResult = `\nAviso Push Web: ${result.error || 'Erro na API'}`;
+                        }
+                      } catch (e) {
+                        pushResult = `\nErro ao conectar à API de Push.`;
+                        console.error(e);
+                      }
+                    } else {
+                      pushResult = `\nNenhum dispositivo com permissão de notificação externa encontrado.`;
+                    }
+
+                    alert(`Mensagem "Adma English Center" guardada com sucesso! ${count} encarregados receberão o alerta dentro da App na aba de notificações.${pushResult}`);
+                    setIsNotifyModalOpen(false);
+                    setNotifyMessage('');
+                  } catch (e) {
+                    console.error(e);
+                    alert('Erro ao enviar notificação.');
+                  } finally {
+                    setIsSendingNotif(false);
+                  }
+                }}
+                className="flex-1 py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-colors shadow-lg shadow-amber-500/30 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
+              >
+                {isSendingNotif ? 'A Enviar...' : 'Enviar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Profile Header */}
       <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 text-white p-8 pt-12 rounded-b-[2.5rem] shadow-[0_10px_40px_rgba(99,102,241,0.3)] relative overflow-hidden">
         {/* Soft geometric shapes */}
@@ -239,9 +342,7 @@ export function TeacherDashboard({ profile, onViewProfile }: { profile: UserProf
         }} />
 
         <button
-          onClick={() => {
-            alert("Notificação enviada com sucesso para todos os encarregados.\n\n(Nota técnica: Em ambiente estático, dispara a notificação pelo painel do Firebase Console ou usa uma Cloud Function que oiça a coleção 'notifications' para disparar o FCM para o tópico 'encarregados_adma').");
-          }}
+          onClick={() => setIsNotifyModalOpen(true)}
           className="absolute top-8 right-6 z-40 p-2.5 bg-amber-500/90 backdrop-blur-md rounded-xl text-white hover:bg-amber-600 transition-all shadow-sm active:scale-95 flex items-center justify-center border border-amber-400/50"
           title="Notificar Todos os Encarregados"
         >

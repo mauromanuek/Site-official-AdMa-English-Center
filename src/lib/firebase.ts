@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBDJhrW9d1bF7qEC6gfCsGIsShG0LFBWL0",
@@ -15,12 +16,30 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// FCM (Simulado para o Frontend Estático)
-// Na prática, o web SDK não suporta subscribeToTopic. Isto requer uma Cloud Function.
-export const messaging = {
-  subscribeToTopic: async (token: string, topic: string) => {
-    console.log(`[FCM Simulado] Subscrição efetuada: token ${token} -> tópico ${topic}`);
-    // fetch('https://SUA_CLOUD_FUNCTION/subscribe', { ... })
-    return Promise.resolve();
+// Initialize messaging (only in browser)
+let messagingInstance: any = null;
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  try {
+    messagingInstance = getMessaging(app);
+  } catch (e) {
+    console.error("Firebase Messaging Error:", e);
   }
+}
+export const messaging = messagingInstance;
+
+export const requestNotificationPermission = async () => {
+  if (!messaging) return null;
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      const token = await getToken(messaging, {
+        vapidKey: 'BHzJ97jXG-oN4_U3E5yYk9zO242X0_5vU3-E5yYk9zO242X0_5vU3-E5yYk9zO242X0_5vU3' // NOTA: o vapidKey real deve ser obtido no Firebase Console (Cloud Messaging -> Web Push certs)
+      });
+      console.log('FCM Token:', token);
+      return token;
+    }
+  } catch (error) {
+    console.error('An error occurred while retrieving token. ', error);
+  }
+  return null;
 };

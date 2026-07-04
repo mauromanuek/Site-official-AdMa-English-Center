@@ -46,7 +46,23 @@ export function AuthScreen({ onRoleSelect }: { onRoleSelect: (role: Role) => voi
           }
         }
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
+        try {
+          await createUserWithEmailAndPassword(auth, email, password);
+        } catch (createErr: any) {
+          if (createErr.code === 'auth/email-already-in-use') {
+            try {
+              // Facebook-style: se o número já existe, tentamos fazer login automaticamente
+              await signInWithEmailAndPassword(auth, email, password);
+            } catch (loginErr: any) {
+              if (loginErr.code === 'auth/wrong-password' || loginErr.code === 'auth/invalid-credential') {
+                throw new Error('Este número já tem uma conta. A palavra-passe está incorreta.');
+              }
+              throw loginErr;
+            }
+          } else {
+            throw createErr;
+          }
+        }
       }
       onRoleSelect(role!);
     } catch (err: any) {
