@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { UserProfile, Notification } from '../types';
-import { Bell, CheckCircle, Info, Star, Trash2 } from 'lucide-react';
+import { db, requestNotificationPermission } from '../lib/firebase';
+import { UserProfile, Notification as AppNotification } from '../types';
+import { Bell, CheckCircle, Info, Star, Trash2, BellRing } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { cn } from '../lib/utils';
 
 export function NotificationsView({ profile, onViewProfile }: { profile: UserProfile, onViewProfile?: (u: string) => void }) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [permissionState, setPermissionState] = useState<string>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  );
 
   useEffect(() => {
     const q = query(collection(db, 'notifications'), where('userId', '==', profile.id));
@@ -41,15 +44,54 @@ export function NotificationsView({ profile, onViewProfile }: { profile: UserPro
     }
   };
 
+  const handleEnablePush = async () => {
+    try {
+      const token = await requestNotificationPermission();
+      if (token) {
+        await updateDoc(doc(db, 'users', profile.id), { fcmToken: token });
+        setPermissionState('granted');
+        alert('Notificações push ativadas com sucesso para este dispositivo!');
+      } else {
+        alert('Não foi possível obter o token. Verifica as tuas configurações ou permissões do browser.');
+        setPermissionState(Notification.permission);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao ativar notificações.');
+    }
+  };
+
   if (loading) {
     return <div className="p-8 text-center text-gray-500">A carregar notificações...</div>;
   }
 
   return (
     <div className="p-4 max-w-md mx-auto">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-        <Bell className="w-6 h-6 text-blue-600" /> Notificações
-      </h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <Bell className="w-6 h-6 text-blue-600" /> Notificações
+        </h2>
+      </div>
+
+      {permissionState !== 'granted' && profile.role === 'parent' && (
+        <div className="mb-6 bg-blue-50 border border-blue-100 rounded-2xl p-4 flex flex-col items-center text-center gap-3">
+          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
+            <BellRing className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-900">Ativar Alertas Push</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Recebe notificações instantâneas no teu telemóvel quando houver novidades sobre o teu educando.
+            </p>
+          </div>
+          <button
+            onClick={handleEnablePush}
+            className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-colors shadow-sm"
+          >
+            Ativar Agora
+          </button>
+        </div>
+      )}
 
       {notifications.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-100">
