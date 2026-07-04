@@ -33,7 +33,7 @@ export const requestNotificationPermission = async () => {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
       const token = await getToken(messaging, {
-        vapidKey: 'BHzJ97jXG-oN4_U3E5yYk9zO242X0_5vU3-E5yYk9zO242X0_5vU3-E5yYk9zO242X0_5vU3' // NOTA: o vapidKey real deve ser obtido no Firebase Console (Cloud Messaging -> Web Push certs)
+        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BHzJ97jXG-oN4_U3E5yYk9zO242X0_5vU3-E5yYk9zO242X0_5vU3-E5yYk9zO242X0_5vU3' 
       });
       console.log('FCM Token:', token);
       return token;
