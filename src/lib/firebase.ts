@@ -30,16 +30,18 @@ export const saveTokenToFirestore = async (userId: string, token: string) => {
 
 // Converte a chave VAPID Base64 para Uint8Array exigido pelo PushManager dos navegadores
 export function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  // Limpa agressivamente espaços, quebras de linha, tabulações e aspas
-  const cleaned = base64String
-    .replace(/[\s\r\n\t]+/g, '')
-    .replace(/['"]/g, '');
+  // 1. LIMPEZA AGRESSIVA: Remove espaços, quebras de linha e tabs invisíveis
+  const cleaned = base64String.replace(/[\s\r\n\t]+/g, '');
   
+  // 2. Padding: Garante que o comprimento é múltiplo de 4
   const padding = '='.repeat((4 - (cleaned.length % 4)) % 4);
+  
+  // 3. Substituições padrão para Base64 URL-Safe
   const base64 = (cleaned + padding)
     .replace(/\-/g, '+')
     .replace(/_/g, '/');
 
+  // 4. Decodificação segura
   const rawData = window.atob(base64);
   const outputArray = new Uint8Array(rawData.length);
 
