@@ -40,6 +40,7 @@ export const requestNotificationPermission = async () => {
     }
   } catch (error) {
     console.error('An error occurred while retrieving token. ', error);
+    throw error;
   }
   return null;
 };

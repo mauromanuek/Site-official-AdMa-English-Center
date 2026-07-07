@@ -55,9 +55,9 @@ export function NotificationsView({ profile, onViewProfile }: { profile: UserPro
         alert('Não foi possível obter o token. Verifica as tuas configurações ou permissões do browser.');
         setPermissionState(Notification.permission);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert('Erro ao ativar notificações.');
+      alert('Erro ao ativar notificações: ' + (error.message || error));
     }
   };
 
