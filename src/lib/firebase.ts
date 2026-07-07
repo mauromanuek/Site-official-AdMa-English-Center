@@ -32,8 +32,14 @@ export const requestNotificationPermission = async () => {
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
+      let registration;
+      if ('serviceWorker' in navigator) {
+        registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        console.log('Service Worker registered successfully:', registration);
+      }
       const token = await getToken(messaging, {
-        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BMWNpsr_RM_TNZ-HD_v0EeVd-C3BjEkGSH-_a5M7fyih-L3sF83PFDvbWUIjzXLDW3lpJkLvCEtDG-cwF626Nms' 
+        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BMWNpsr_RM_TNZ-HD_v0EeVd-C3BjEkGSH-_a5M7fyih-L3sF83PFDvbWUIjzXLDW3lpJkLvCEtDG-cwF626Nms',
+        serviceWorkerRegistration: registration
       });
       console.log('FCM Token:', token);
       return token;
