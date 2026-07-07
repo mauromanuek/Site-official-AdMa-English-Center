@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, doc, updateDoc } from "firebase/firestore";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 const firebaseConfig = {
@@ -16,6 +16,35 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
+// Função para salvar token no Firestore de forma centralizada e reutilizável
+export const saveTokenToFirestore = async (userId: string, token: string) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, { fcmToken: token });
+    console.log("fcmToken atualizado com sucesso no Firestore para o utilizador:", userId);
+  } catch (error) {
+    console.error("Erro ao salvar fcmToken no Firestore:", error);
+    throw error;
+  }
+};
+
+// Converte a chave VAPID Base64 para Uint8Array exigido pelo PushManager dos navegadores
+export function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const cleaned = base64String.trim().replace(/['"]/g, '');
+  const padding = '='.repeat((4 - cleaned.length % 4) % 4);
+  const base64 = (cleaned + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 // Initialize messaging (only in browser)
 let messagingInstance: any = null;
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
@@ -28,25 +57,91 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
 export const messaging = messagingInstance;
 
 export const requestNotificationPermission = async () => {
-  if (!messaging) return null;
+  if (!messaging) {
+    if (typeof window === 'undefined') {
+      throw new Error("As notificações não podem ser inicializadas no servidor.");
+    }
+    if (!('serviceWorker' in navigator)) {
+      throw new Error("Este browser não suporta Service Workers. No iOS, certifica-te de que estás no iOS 16.4+ e adicionaste a App ao ecrã principal (PWA).");
+    }
+    if (!('Notification' in window)) {
+      throw new Error("Este browser não suporta a API de Notificações.");
+    }
+    throw new Error("O Firebase Cloud Messaging não pôde ser inicializado neste dispositivo.");
+  }
+
   try {
     const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      let registration;
-      if ('serviceWorker' in navigator) {
+    if (permission === 'denied') {
+      throw new Error("Permissão bloqueada. Clica no ícone de configurações/cadeado na barra de endereços do teu browser e ativa as notificações para este site.");
+    }
+    if (permission !== 'granted') {
+      throw new Error("A permissão para receber notificações foi recusada ou fechada. Tenta novamente.");
+    }
+
+    let registration;
+    if ('serviceWorker' in navigator) {
+      try {
         registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        console.log('Service Worker registered successfully:', registration);
+        await navigator.serviceWorker.ready;
+        console.log('Service Worker registrado e pronto:', registration);
+      } catch (swError: any) {
+        throw new Error("Erro ao registar o Service Worker de notificações: " + (swError.message || swError));
       }
+    }
+
+    const rawVapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BMWNpsr_RM_TNZ-HD_v0EeVd-C3BjEkGSH-_a5M7fyih-L3sF83PFDvbWUIjzXLDW3lpJkLvCEtDG-cwF626Nms';
+    let convertedVapidKey: any;
+    try {
+      convertedVapidKey = urlBase64ToUint8Array(rawVapidKey);
+    } catch (vapidError: any) {
+      throw new Error("A VITE_FIREBASE_VAPID_KEY configurada não é uma chave Base64 válida. Verifica os teus segredos. Erro: " + vapidError.message);
+    }
+
+    try {
       const token = await getToken(messaging, {
-        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BMWNpsr_RM_TNZ-HD_v0EeVd-C3BjEkGSH-_a5M7fyih-L3sF83PFDvbWUIjzXLDW3lpJkLvCEtDG-cwF626Nms',
+        vapidKey: convertedVapidKey,
         serviceWorkerRegistration: registration
       });
+      
+      if (!token) {
+        throw new Error("O Firebase retornou um token vazio. Verifica as tuas chaves VAPID no painel do Firebase.");
+      }
+      
       console.log('FCM Token:', token);
       return token;
+    } catch (tokenError: any) {
+      console.warn("Erro ao obter token FCM. Tentando auto-correção limpando subscrições antigas...", tokenError);
+      
+      // Auto-correção: se houver erro de chave VAPID incompatível com subscrição existente,
+      // cancelamos a subscrição antiga no browser e tentamos novamente.
+      if (registration) {
+        try {
+          const existingSubscription = await registration.pushManager.getSubscription();
+          if (existingSubscription) {
+            console.log('Limpando subscrição antiga do browser para evitar conflito de chaves VAPID...');
+            await existingSubscription.unsubscribe();
+            
+            // Tenta obter o token novamente com a nova chave VAPID
+            const token = await getToken(messaging, {
+              vapidKey: convertedVapidKey,
+              serviceWorkerRegistration: registration
+            });
+            if (token) {
+              console.log('Token FCM obtido com sucesso após auto-correção de subscrição:', token);
+              return token;
+            }
+          }
+        } catch (healError) {
+          console.error("Falha ao executar auto-correção de subscrição:", healError);
+        }
+      }
+      
+      console.error("FCM Token Error details:", tokenError);
+      throw new Error("Erro ao gerar token FCM. Detalhes: " + (tokenError.message || tokenError));
     }
   } catch (error) {
     console.error('An error occurred while retrieving token. ', error);
     throw error;
   }
-  return null;
 };

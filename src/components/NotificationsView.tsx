@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db, requestNotificationPermission } from '../lib/firebase';
+import { db, requestNotificationPermission, saveTokenToFirestore } from '../lib/firebase';
 import { UserProfile, Notification as AppNotification } from '../types';
 import { Bell, CheckCircle, Info, Star, Trash2, BellRing } from 'lucide-react';
 import { Avatar } from './Avatar';
@@ -48,16 +48,21 @@ export function NotificationsView({ profile, onViewProfile }: { profile: UserPro
     try {
       const token = await requestNotificationPermission();
       if (token) {
-        await updateDoc(doc(db, 'users', profile.id), { fcmToken: token });
+        await saveTokenToFirestore(profile.id, token);
         setPermissionState('granted');
         alert('Notificações push ativadas com sucesso para este dispositivo!');
       } else {
-        alert('Não foi possível obter o token. Verifica as tuas configurações ou permissões do browser.');
-        setPermissionState(Notification.permission);
+        alert('Não foi possível obter o token. Verifica se o teu dispositivo e browser suportam notificações push.');
+        if (typeof Notification !== 'undefined') {
+          setPermissionState(Notification.permission);
+        }
       }
     } catch (error: any) {
       console.error(error);
-      alert('Erro ao ativar notificações: ' + (error.message || error));
+      alert('Aviso: ' + (error.message || error));
+      if (typeof Notification !== 'undefined') {
+        setPermissionState(Notification.permission);
+      }
     }
   };
 
