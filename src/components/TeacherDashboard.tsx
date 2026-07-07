@@ -282,20 +282,24 @@ export function TeacherDashboard({ profile, onViewProfile }: { profile: UserProf
                     let pushResult = '';
                     if (tokens.length > 0) {
                       try {
-                        const response = await fetch('/api/send-push', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            tokens,
-                            title: 'Adma English Center',
-                            body: notifyMessage.trim()
-                          })
-                        });
-                        const result = await response.json();
-                        if (response.ok) {
-                          pushResult = `\nPush Web enviado para ${tokens.length} dispositivos!`;
+                        const { dispararNotificacao } = await import('../lib/pushNotifications');
+                        
+                        // Send notifications individually or modify dispararNotificacao to accept an array.
+                        // Currently dispararNotificacao accepts a single token.
+                        let successCount = 0;
+                        for (const token of tokens) {
+                           try {
+                             await dispararNotificacao(token, 'Adma English Center', notifyMessage.trim());
+                             successCount++;
+                           } catch (err) {
+                             console.error('Erro ao enviar para um dos tokens', err);
+                           }
+                        }
+                        
+                        if (successCount > 0) {
+                          pushResult = `\nPush Web enviado para ${successCount} dispositivos!`;
                         } else {
-                          pushResult = `\nAviso Push Web: ${result.error || 'Erro na API'}`;
+                          pushResult = `\nAviso Push Web: Falha ao enviar para os dispositivos com permissão.`;
                         }
                       } catch (e) {
                         pushResult = `\nErro ao conectar à API de Push.`;
