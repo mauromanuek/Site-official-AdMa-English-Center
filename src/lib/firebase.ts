@@ -97,16 +97,21 @@ export const requestNotificationPermission = async () => {
     }
 
     const rawVapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BMWNpsr_RM_TNZ-HD_v0EeVd-C3BjEkGSH-_a5M7fyih-L3sF83PFDvbWUIjzXLDW3lpJkLvCEtDG-cwF626Nms';
-    let convertedVapidKey: any;
+    // 1. Limpeza agressiva: remove espaços, quebras de linha (\r, \n), tabs (\t) e aspas
+    const cleanVapidKey = rawVapidKey.replace(/[\s\r\n\t]+/g, '').replace(/['"]/g, '');
+
+    // 2. Valida a codificação com a função robusta
     try {
-      convertedVapidKey = urlBase64ToUint8Array(rawVapidKey);
+      urlBase64ToUint8Array(cleanVapidKey);
     } catch (vapidError: any) {
       throw new Error("A VITE_FIREBASE_VAPID_KEY configurada não é uma chave Base64 válida. Verifica os teus segredos. Erro: " + vapidError.message);
     }
 
     try {
+      // O SDK do Firebase Messaging espera a string VAPID limpa em `vapidKey`.
+      // Internamente o SDK faz a conversão para applicationServerKey via PushManager.
       const token = await getToken(messaging, {
-        vapidKey: convertedVapidKey,
+        vapidKey: cleanVapidKey,
         serviceWorkerRegistration: registration
       });
       
@@ -114,7 +119,7 @@ export const requestNotificationPermission = async () => {
         throw new Error("O Firebase retornou um token vazio. Verifica as tuas chaves VAPID no painel do Firebase.");
       }
       
-      console.log('FCM Token:', token);
+      console.log('FCM Token obtido com sucesso:', token);
       return token;
     } catch (tokenError: any) {
       console.warn("Erro ao obter token FCM. Tentando auto-correção limpando subscrições antigas...", tokenError);
@@ -128,9 +133,9 @@ export const requestNotificationPermission = async () => {
             console.log('Limpando subscrição antiga do browser para evitar conflito de chaves VAPID...');
             await existingSubscription.unsubscribe();
             
-            // Tenta obter o token novamente com a nova chave VAPID
+            // Tenta obter o token novamente com a nova chave VAPID limpa
             const token = await getToken(messaging, {
-              vapidKey: convertedVapidKey,
+              vapidKey: cleanVapidKey,
               serviceWorkerRegistration: registration
             });
             if (token) {

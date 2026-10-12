@@ -49,8 +49,10 @@ async function startServer() {
       return res.status(500).json({ error: "Firebase Admin não inicializado. Certifica-te de configurar FIREBASE_SERVICE_ACCOUNT_KEY." });
     }
 
-    const { token, userId, title, body } = req.body;
+    const { token, userId, title, body, titulo, mensagem } = req.body;
     let targetToken = token;
+    const finalTitle = title || titulo || "Adma English Center";
+    const finalBody = body || mensagem || "Nova notificação da escola.";
 
     if (!targetToken && userId) {
       console.log(`Buscando token para o userId no Firestore: "${userId}"`);
@@ -60,25 +62,25 @@ async function startServer() {
         if (userDoc.exists) {
           const userData = userDoc.data();
           targetToken = userData?.fcmToken;
-          console.log(`Token encontrado no documento do usuário: "${targetToken}"`);
+          console.log(`Token encontrado no Firestore para o usuário "${userId}": "${targetToken}"`);
         } else {
           console.warn(`Aviso: Documento do usuário "${userId}" não existe no Firestore.`);
         }
       } catch (dbErr) {
-        console.error("Erro ao consultar Firestore para obter token por userId:", dbErr);
+        console.error("Erro na busca do token no Firestore:", dbErr);
       }
     }
 
     if (!targetToken) {
-      console.error("Erro: Nenhum token ou userId válido foi fornecido.");
-      return res.status(400).json({ error: "Nenhum token ou userId válido com fcmToken foi fornecido." });
+      console.error("Token inválido: Nenhum token ou userId válido foi fornecido.");
+      return res.status(400).json({ error: "Token inválido ou não fornecido." });
     }
 
     // Diagnóstico e validação do token
     console.log(`Validando o token FCM: "${targetToken}"`);
     if (typeof targetToken !== 'string' || targetToken.trim() === '') {
-      console.error("Erro: O token não é uma string válida.");
-      return res.status(400).json({ error: "O token recebido é inválido (não é uma string preenchida)." });
+      console.error("Token inválido: O token não é uma string válida.");
+      return res.status(400).json({ error: "Token inválido (não é uma string preenchida)." });
     }
 
     // Verificar se o token existe cadastrado na base de dados (coleção 'users')
@@ -86,15 +88,15 @@ async function startServer() {
       const dbAdmin = getFirestore();
       const usersSnap = await dbAdmin.collection('users').where('fcmToken', '==', targetToken).get();
       if (usersSnap.empty) {
-        console.warn(`Aviso: O token "${targetToken}" não foi encontrado em nenhum documento da coleção 'users' do Firestore.`);
+        console.warn(`Aviso: O token não foi encontrado na coleção 'users', mas prosseguirá para envio.`);
       } else {
-        console.log(`Sucesso: Token encontrado em ${usersSnap.size} documento(s) na coleção 'users'.`);
+        console.log(`Token encontrado no Firestore em ${usersSnap.size} documento(s) da coleção 'users'.`);
         usersSnap.forEach(doc => {
           console.log(`  - Associado ao usuário ID: ${doc.id}, Nome: ${doc.data().name || 'N/D'}`);
         });
       }
     } catch (dbErr) {
-      console.error("Erro ao verificar presença do token no Firestore:", dbErr);
+      console.error("Erro na busca do token:", dbErr);
     }
 
     // Disparar o push usando o SDK do Firebase Admin
@@ -102,18 +104,18 @@ async function startServer() {
       console.log(`Enviando notificação via Firebase Admin para o token...`);
       const message = {
         notification: {
-          title: title || "Teste do Adma English Center",
-          body: body || "Esta é uma notificação de teste push bem-sucedida!"
+          title: finalTitle,
+          body: finalBody
         },
         token: targetToken,
       };
 
       const response = await getMessaging().send(message);
-      console.log("Sucesso! Notificação de teste enviada. ID da resposta:", response);
+      console.log("Sucesso! Notificação enviada via Firebase Admin. ID da resposta:", response);
       console.log("=== FIM DO DIAGNÓSTICO (SUCESSO) ===");
       return res.json({ 
         success: true, 
-        message: "Notificação de teste enviada com sucesso!", 
+        message: "Notificação enviada com sucesso!", 
         fcmResponse: response,
         tokenUsed: targetToken 
       });
@@ -130,6 +132,8 @@ async function startServer() {
 
   app.post("/send-test-notification", handleSendTestNotification);
   app.post("/api/send-test-notification", handleSendTestNotification);
+  app.post("/sendNotification", handleSendTestNotification);
+  app.post("/api/sendNotification", handleSendTestNotification);
 
   // API route for sending push notifications
   app.post("/api/send-push", async (req, res) => {
